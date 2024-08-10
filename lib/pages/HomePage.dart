@@ -8,7 +8,7 @@ import 'package:smart_board/pages/gallery_page.dart';
 import 'package:smart_board/pages/whiteboard2.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 
 
 

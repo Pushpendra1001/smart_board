@@ -23,6 +23,9 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
   List<List<DrawingPoint>> undoHistory = [];
   List<List<DrawingPoint>> redoHistory = [];
   DrawingTool currentTool = DrawingTool.pencil;
+  TextEditingController textController = TextEditingController();
+  Offset? textPosition;
+  int? editingTextIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -45,26 +48,23 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
       body: Column(
         children: [
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return GestureDetector(
-                  onPanStart: _handlePanStart,
-                  onPanUpdate: _handlePanUpdate,
-                  onPanEnd: _handlePanEnd,
-                  child: CustomPaint(
-                    painter: _DrawingPainter(
-                      points: points,
-                      currentShape: currentShape,
-                      startPoint: startPoint,
-                      endPoint: endPoint,
-                      selectedColor: selectedColor,
-                      strokeWidth: strokeWidth,
-                      backgroundColor: backgroundColor,
-                    ),
-                    size: Size(constraints.maxWidth, constraints.maxHeight),
-                  ),
-                );
-              },
+            child: GestureDetector(
+              onPanStart: _handlePanStart,
+              onPanUpdate: _handlePanUpdate,
+              onPanEnd: _handlePanEnd,
+              onDoubleTap: _handleDoubleTap,
+              child: CustomPaint(
+                painter: _DrawingPainter(
+                  points: points,
+                  currentShape: currentShape,
+                  startPoint: startPoint,
+                  endPoint: endPoint,
+                  selectedColor: selectedColor,
+                  strokeWidth: strokeWidth,
+                  backgroundColor: backgroundColor,
+                ),
+                size: Size.infinite,
+              ),
             ),
           ),
           _buildToolbar(),
@@ -80,25 +80,46 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
         color: Colors.grey[200],
         border: Border(top: BorderSide(color: Colors.grey[400]!, width: 1)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildToolbarItem(Icons.edit, 'Pencil', DrawingTool.pencil),
-            _buildToolbarItem(Icons.brush, 'Brush', DrawingTool.brush),
-            _buildToolbarItem(Icons.color_lens, 'Color', DrawingTool.colorPicker),
-            _buildToolbarItem(Icons.format_paint, 'Fill', DrawingTool.fill),
-            _buildToolbarItem(Icons.rectangle_outlined, 'Rectangle', DrawingTool.rectangle),
-            _buildToolbarItem(Icons.circle_outlined, 'Circle', DrawingTool.circle),
-            _buildToolbarItem(Icons.change_history, 'Triangle', DrawingTool.triangle),
-            _buildToolbarItem(Icons.square_outlined, 'Square', DrawingTool.square),
-            _buildToolbarItem(Icons.text_fields, 'Text', DrawingTool.text),
-            _buildToolbarItem(Icons.undo, 'Undo', DrawingTool.undo),
-            _buildToolbarItem(Icons.redo, 'Redo', DrawingTool.redo),
-            _buildToolbarItem(Icons.auto_fix_high, 'Eraser', DrawingTool.eraser),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildToolbarItem(Icons.edit, 'Pencil', DrawingTool.pencil),
+                _buildToolbarItem(Icons.brush, 'Brush', DrawingTool.brush),
+                _buildToolbarItem(Icons.color_lens, 'Color', DrawingTool.colorPicker),
+                _buildToolbarItem(Icons.format_paint, 'Fill', DrawingTool.fill),
+                _buildToolbarItem(Icons.rectangle_outlined, 'Rectangle', DrawingTool.rectangle),
+                _buildToolbarItem(Icons.circle_outlined, 'Circle', DrawingTool.circle),
+                _buildToolbarItem(Icons.change_history, 'Triangle', DrawingTool.triangle),
+                _buildToolbarItem(Icons.square_outlined, 'Square', DrawingTool.square),
+                _buildToolbarItem(Icons.text_fields, 'Text', DrawingTool.text),
+                _buildToolbarItem(Icons.undo, 'Undo', DrawingTool.undo),
+                _buildToolbarItem(Icons.redo, 'Redo', DrawingTool.redo),
+                _buildToolbarItem(Icons.auto_fix_high, 'Eraser', DrawingTool.eraser),
+              ],
+            ),
+          ),
+          SizedBox(height: 10),
+          Row(
+            children: [
+              Text('Tip size: '),
+              Expanded(
+                child: Slider(
+                  value: strokeWidth,
+                  min: 1,
+                  max: 20,
+                  divisions: 19,
+                  label: strokeWidth.round().toString(),
+                  onChanged: (value) => setState(() => strokeWidth = value),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -150,6 +171,12 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
         case DrawingTool.redo:
           _redo();
           break;
+        case DrawingTool.pencil:
+          strokeWidth = 3.0;
+          break;
+        case DrawingTool.brush:
+          strokeWidth = 10.0;
+          break;
         default:
           break;
       }
@@ -159,11 +186,11 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
   void _handlePanStart(DragStartDetails details) {
     setState(() {
       startPoint = details.localPosition;
-      if (currentShape == DrawingShape.none) {
+      if (currentShape == DrawingShape.none && currentTool != DrawingTool.text) {
         points.add(DrawingPoint(
           offset: details.localPosition,
           paint: Paint()
-            ..strokeCap = StrokeCap.round
+            ..strokeCap = currentTool == DrawingTool.brush ? StrokeCap.round : StrokeCap.square
             ..isAntiAlias = true
             ..color = eraseMode ? backgroundColor : selectedColor
             ..strokeWidth = strokeWidth
@@ -176,11 +203,11 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
   void _handlePanUpdate(DragUpdateDetails details) {
     setState(() {
       endPoint = details.localPosition;
-      if (currentShape == DrawingShape.none) {
+      if (currentShape == DrawingShape.none && currentTool != DrawingTool.text) {
         points.add(DrawingPoint(
           offset: details.localPosition,
           paint: Paint()
-            ..strokeCap = StrokeCap.round
+            ..strokeCap = currentTool == DrawingTool.brush ? StrokeCap.round : StrokeCap.square
             ..isAntiAlias = true
             ..color = eraseMode ? backgroundColor : selectedColor
             ..strokeWidth = strokeWidth
@@ -210,6 +237,22 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
       undoHistory.add(List.from(points));
       redoHistory.clear();
     });
+  }
+
+  void _handleDoubleTap() {
+    for (int i = points.length - 1; i >= 0; i--) {
+      var details;
+      if (points[i].text != null && 
+          (points[i].offset - details.localPosition).distance < 20) {
+        setState(() {
+          editingTextIndex = i;
+          textController.text = points[i].text!;
+          textPosition = points[i].offset;
+          _showTextEditor();
+        });
+        break;
+      }
+    }
   }
 
   void _showColorPicker() {
@@ -242,11 +285,16 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
   }
 
   void _addText() {
-    final textController = TextEditingController();
+    textController.clear();
+    textPosition = null;
+    _showTextEditor();
+  }
+
+  void _showTextEditor() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Add Text'),
+        title: Text(editingTextIndex == null ? 'Add Text' : 'Edit Text'),
         content: TextField(
           controller: textController,
           decoration: InputDecoration(hintText: 'Enter text'),
@@ -254,22 +302,36 @@ class _WhiteboardPageState extends State<WhiteboardPage> {
         actions: [
           TextButton(
             child: Text('Cancel'),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              editingTextIndex = null;
+              Navigator.of(context).pop();
+            },
           ),
           TextButton(
-            child: Text('Add'),
+            child: Text(editingTextIndex == null ? 'Add' : 'Update'),
             onPressed: () {
               setState(() {
-                points.add(DrawingPoint(
-                  offset: Offset(100, 100), // Default position, you may want to make this adjustable
-                  paint: Paint()
-                    ..color = selectedColor
-                    ..strokeWidth = strokeWidth,
-                  text: textController.text,
-                ));
+                if (editingTextIndex != null) {
+                  points[editingTextIndex!] = DrawingPoint(
+                    offset: textPosition ?? points[editingTextIndex!].offset,
+                    paint: Paint()
+                      ..color = selectedColor
+                      ..strokeWidth = strokeWidth,
+                    text: textController.text,
+                  );
+                } else {
+                  points.add(DrawingPoint(
+                    offset: textPosition ?? Offset(100, 100),
+                    paint: Paint()
+                      ..color = selectedColor
+                      ..strokeWidth = strokeWidth,
+                    text: textController.text,
+                  ));
+                }
                 undoHistory.add(List.from(points));
                 redoHistory.clear();
               });
+              editingTextIndex = null;
               Navigator.of(context).pop();
             },
           ),
@@ -429,7 +491,8 @@ class _DrawingPainter extends CustomPainter {
         break;
     }
   }
-void _drawText(Canvas canvas, DrawingPoint point) {
+
+  void _drawText(Canvas canvas, DrawingPoint point) {
     final textSpan = TextSpan(
       text: point.text,
       style: TextStyle(color: point.paint.color, fontSize: point.paint.strokeWidth * 5),
